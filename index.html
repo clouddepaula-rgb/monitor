@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ArbDash - Monitor de Arbitragem em Tempo Real. Encontre as melhores oportunidades entre CEXs e DEXs para USDT e BRLA/BRZ.">
+    <meta name="keywords" content="Arbitragem, Criptomoedas, USDT, BRLA, BRZ, Binance, Bybit, Kucoin, Paraswap, KyberSwap">
+    <meta property="og:title" content="ArbDash | Arbitrage Dashboard">
+    <meta property="og:description" content="Monitor em Tempo Real para operações de Arbitragem de USDT/BRLA">
+    <meta property="og:type" content="website">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://*.binance.com:9443 wss://stream.binance.com wss://stream.bybit.com wss://ws.bitget.com wss://*.kucoin.com http://localhost:3000 https://apiv5.paraswap.io https://aggregator-api.kyberswap.com https://api.rss2json.com; img-src 'self' data: https://cryptologos.cc https://*.cryptologos.cc https://*.coingecko.com https://assets.coingecko.com https://wsrv.nl;">
+    <title>ArbDash | Monitor Real-Time de Arbitragem</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@300;400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/disable-devtool/disable-devtool.min.js"></script>
+    <script type="module">
+        import { supabaseClient } from '/supabase-config.js';
+        DisableDevtool({
+            ondevtoolopen: async function(type, next) {
+                document.body.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#050505;color:#ff3366;font-family:sans-serif;font-size:24px;font-weight:bold;">Acesso Negado: Inspecionar Elemento Proibido</div>';
+                try {
+                    await supabaseClient.auth.signOut();
+                } catch(e) {}
+                setTimeout(() => window.location.href = "/login", 1000);
+            },
+            disableSelect: false,
+            disableCopy: false,
+            disableMenu: true
+        });
+    </script>
+</head>
+<body>
+    <div class="bg-elements">
+        <div class="bg-grid-overlay"></div>
+        <div class="bg-radial-gradient"></div>
+    </div>
+    
+    <div class="app-container">
+        <header>
+            <div class="connection-status" id="api-status">
+                <div class="status-dot"></div>
+                <span class="status-text">Conectando...</span>
+            </div>
+            <div class="logo">
+                <i class="fa-solid fa-bolt-lightning"></i>
+                <h1>Arb<span class="gradient-text">Dash</span></h1>
+            </div>
+            <p>Monitor Real-Time de Arbitragem (USDT ➔ BRZ/BRLA Polygon)</p>
+            <div class="header-actions">
+                <button id="sound-toggle" class="sound-toggle-btn off">
+                    <i class="fa-solid fa-bell-slash"></i> Alertas: OFF
+                </button>
+                <div class="news-buttons">
+                    <button class="news-btn pulse-border" onclick="openNewsModal('decrypt')">
+                        <i class="fa-solid fa-bolt"></i> Decrypt
+                    </button>
+                    <button class="news-btn pulse-border" onclick="openNewsModal('portalbitcoin')">
+                        <i class="fa-brands fa-bitcoin"></i> Portal do Bitcoin
+                    </button>
+                    <button id="logout-btn" class="news-btn" style="border-color: var(--danger); color: var(--danger);">
+                        <i class="fa-solid fa-right-from-bracket"></i> Sair
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section class="config-panel glass-panel">
+                <div class="input-group">
+                    <label for="investment">Investimento Inicial (BRL)</label>
+                    <div class="input-wrapper">
+                        <span class="currency">R$</span>
+                        <input type="text" id="investment" value="10.000" inputmode="numeric">
+                    </div>
+                </div>
+
+                <div class="settings-accordion">
+                    <button id="toggle-settings" class="toggle-btn">
+                        <i class="fa-solid fa-sliders"></i> Ajuste de Taxas (CEX)
+                        <i class="fa-solid fa-chevron-down arrow"></i>
+                    </button>
+                    <div id="settings-content" class="settings-content">
+                        <div class="fees-grid">
+                            <!-- Binance -->
+                            <div class="fee-card">
+                                <h3><img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg?v=026" alt="Binance" width="16"> Binance</h3>
+                                <div class="fee-input">
+                                    <label>Trading (%)</label>
+                                    <input type="number" id="binance-trading-fee" value="0.1" step="0.01">
+                                </div>
+                                <div class="fee-input">
+                                    <label>Saque (USDT)</label>
+                                    <input type="number" id="binance-withdrawal-fee" value="0.07" step="0.01">
+                                </div>
+                            </div>
+                            <!-- Kucoin -->
+                            <div class="fee-card">
+                                <h3><img src="https://cryptologos.cc/logos/kucoin-token-kcs-logo.svg?v=026" alt="Kucoin" width="16"> Kucoin</h3>
+                                <div class="fee-input">
+                                    <label>Trading (%)</label>
+                                    <input type="number" id="kucoin-trading-fee" value="0.1" step="0.01">
+                                </div>
+                                <div class="fee-input">
+                                    <label>Saque (USDT)</label>
+                                    <input type="number" id="kucoin-withdrawal-fee" value="0.80" step="0.01">
+                                </div>
+                            </div>
+                            <!-- Bybit -->
+                            <div class="fee-card">
+                                <h3><img src="https://assets.coingecko.com/markets/images/698/small/bybit_spot.png" alt="Bybit" width="16" style="border-radius: 50%;"> Bybit</h3>
+                                <div class="fee-input">
+                                    <label>Trading (%)</label>
+                                    <input type="number" id="bybit-trading-fee" value="0.2" step="0.01">
+                                </div>
+                                <div class="fee-input">
+                                    <label>Saque (USDT)</label>
+                                    <input type="number" id="bybit-withdrawal-fee" value="0.10" step="0.01">
+                                </div>
+                            </div>
+                            <!-- Bitget -->
+                            <div class="fee-card">
+                                <h3><img src="https://assets.coingecko.com/markets/images/540/small/Bitget_new_logo_2.png" alt="Bitget" width="16" style="border-radius: 50%;"> Bitget</h3>
+                                <div class="fee-input">
+                                    <label>Trading (%)</label>
+                                    <input type="number" id="bitget-trading-fee" value="0.1" step="0.01">
+                                </div>
+                                <div class="fee-input">
+                                    <label>Saque (USDT)</label>
+                                    <input type="number" id="bitget-withdrawal-fee" value="0.20" step="0.01">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <!-- Tab Navigation -->
+            <div class="tab-bar">
+                <button class="tab-btn active" id="tab-btn-dex" data-tab="tab-dex">
+                    <i class="fa-solid fa-chart-line"></i> CEX / DEX
+                </button>
+                <button class="tab-btn" id="tab-btn-cex" data-tab="tab-cex">
+                    <i class="fa-solid fa-arrow-right-arrow-left"></i> CEX / CEX
+                </button>
+            </div>
+
+            <!-- Tab Panel: CEX/DEX -->
+            <div id="tab-dex" class="tab-panel">
+            <section class="results-panel" id="results-container">
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Sincronizando com DEXs e CEXs...</p>
+                </div>
+            </section>
+            </div>
+
+            <!-- Tab Panel: CEX/CEX -->
+            <div id="tab-cex" class="tab-panel tab-panel--hidden">
+            <!-- MONITOR CEX / CEX -->
+            <section id="cex-cex-monitor" class="cex-cex-container glass-panel">
+                <div class="module-header" style="justify-content: center; border-bottom: none; margin-bottom: 0.5rem;">
+                    <div class="logo" style="font-size: 2.5rem;">
+                        <i class="fa-solid fa-money-right-left"></i>
+                        <h2>Monitor <span class="gradient-text">CEX/CEX</span></h2>
+                    </div>
+                </div>
+
+                <div class="exchange-selection">
+                    <div class="selection-group buy-group">
+                        <h3>1. Comprar USDT com BRL em:</h3>
+                        <div class="ex-buttons" id="buy-buttons">
+                            <button class="ex-btn" data-ex="binance"><img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" alt="Binance"> Binance</button>
+                            <button class="ex-btn" data-ex="kucoin"><img src="https://cryptologos.cc/logos/kucoin-token-kcs-logo.svg" alt="Kucoin"> KuCoin</button>
+                            <button class="ex-btn" data-ex="bybit"><img src="https://assets.coingecko.com/markets/images/698/small/bybit_spot.png" alt="Bybit"> Bybit</button>
+                            <button class="ex-btn" data-ex="bitget"><img src="https://assets.coingecko.com/markets/images/540/small/Bitget_new_logo_2.png" alt="Bitget"> Bitget</button>
+                        </div>
+                    </div>
+
+                    <div class="selection-group sell-group">
+                        <h3>2. Vender USDT por BRL em:</h3>
+                        <div class="ex-buttons" id="sell-buttons">
+                            <button class="ex-btn" data-ex="binance"><img src="https://cryptologos.cc/logos/bnb-bnb-logo.svg" alt="Binance"> Binance</button>
+                            <button class="ex-btn" data-ex="kucoin"><img src="https://cryptologos.cc/logos/kucoin-token-kcs-logo.svg" alt="Kucoin"> KuCoin</button>
+                            <button class="ex-btn" data-ex="bybit"><img src="https://assets.coingecko.com/markets/images/698/small/bybit_spot.png" alt="Bybit"> Bybit</button>
+                            <button class="ex-btn" data-ex="bitget"><img src="https://assets.coingecko.com/markets/images/540/small/Bitget_new_logo_2.png" alt="Bitget"> Bitget</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CEX/CEX Flow Cards -->
+                <div class="cex-flow-grid" id="cex-stats-container">
+                    <!-- Card 1: Compra ASK -->
+                    <div class="cex-flow-card cex-buy-card">
+                        <div class="cex-flow-number">1</div>
+                        <span class="cex-flow-label">Compra (Ask)</span>
+                        <span class="cex-flow-value" id="cex-buy-price">R$ 0.0000</span>
+                        <span class="cex-flow-sub" id="cex-buy-name">—</span>
+                    </div>
+                    <div class="cex-flow-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                    <!-- Card 2: USDT Líquido -->
+                    <div class="cex-flow-card cex-usdt-card">
+                        <div class="cex-flow-number">2</div>
+                        <span class="cex-flow-label">USDT Líquido</span>
+                        <span class="cex-flow-value" id="cex-net-usdt">0.00 USDT</span>
+                        <span class="cex-flow-sub">Após fee + saque (Polygon)</span>
+                    </div>
+                    <div class="cex-flow-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                    <!-- Card 3: Venda BID -->
+                    <div class="cex-flow-card cex-sell-card">
+                        <div class="cex-flow-number">3</div>
+                        <span class="cex-flow-label">Venda (Bid)</span>
+                        <span class="cex-flow-value" id="cex-sell-price">R$ 0.0000</span>
+                        <span class="cex-flow-sub" id="cex-sell-name">—</span>
+                    </div>
+                    <div class="cex-flow-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                    <!-- Card 4: Lucro + Spread -->
+                    <div class="cex-flow-card cex-profit-card" id="cex-profit-box">
+                        <div class="cex-flow-number">4</div>
+                        <span class="cex-flow-label">Lucro Líquido</span>
+                        <span class="cex-flow-value cex-profit-value" id="cex-profit-brl">R$ 0.00</span>
+                        <span class="cex-flow-pct" id="cex-profit-pct">0.00%</span>
+                        <div class="cex-spread-badge">
+                            <span class="cex-spread-label">Spread:</span>
+                            <span id="cex-spread">0.000%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="history-section">
+                    <h4><i class="fa-solid fa-clock-rotate-left"></i> Últimas Oportunidades</h4>
+                    <div class="history-list" id="history-list">
+                        <div class="history-item" style="justify-content: center; color: var(--text-muted); border: none; background: transparent;">
+                            Aguardando dados...
+                        </div>
+                    </div>
+                </div>
+            </section>
+            </div><!-- /tab-cex -->
+        </main>
+    </div>
+
+    <!-- Dex Template -->
+    <template id="card-template">
+        <div class="exchange-card glass-panel">
+            <div class="card-glow"></div>
+            <div class="exchange-header">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <h2 class="ex-name">Exchange</h2>
+                    <a href="#" class="trade-link-btn" title="Abrir CEX e DefiLlama">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="price-tag ex-price">R$ 0.0000</div>
+            </div>
+            
+            <div class="calc-steps">
+                <div class="step">
+                    <span class="label">USDT Líquido (Polygon):</span>
+                    <span class="value ex-usdt">0.00 USDT</span>
+                </div>
+            </div>
+
+            <div class="dex-aggregator-section">
+                <h3 class="section-title">Melhores Rotas DEX (USDT ➔ BRZ)</h3>
+                <div class="dex-list">
+                    <!-- Paraswap -->
+                    <div class="dex-item paraswap-route">
+                        <div class="dex-info">
+                            <span class="dex-name"><i class="fa-solid fa-code-merge"></i> Paraswap</span>
+                            <span class="dex-received">0.00 BRZ</span>
+                        </div>
+                        <div class="dex-profit">
+                            <span class="profit-brl">R$ 0.00</span>
+                            <span class="profit-pct">0.00%</span>
+                        </div>
+                    </div>
+
+                    <!-- KyberSwap -->
+                    <div class="dex-item kyber-route">
+                        <div class="dex-info">
+                            <span class="dex-name"><i class="fa-solid fa-droplet"></i> KyberSwap</span>
+                            <span class="dex-received">0.00 BRZ</span>
+                        </div>
+                        <div class="dex-profit">
+                            <span class="profit-brl">R$ 0.00</span>
+                            <span class="profit-pct">0.00%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="assets-grid" style="margin-top: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <!-- BRLA Paraswap -->
+                <div class="asset-box brla-paraswap-box">
+                    <h4>Venda p/ BRLA (Paraswap)</h4>
+                    <div class="step" style="justify-content: center;">
+                        <span class="value brla-paraswap-received" style="font-size: 0.85rem">0.00 BRLA</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <div class="profit-amount brla-paraswap-profit-brl">R$ 0.00</div>
+                        <div class="profit-percentage brla-paraswap-profit-pct">0.00%</div>
+                    </div>
+                </div>
+                <!-- BRLA KyberSwap -->
+                <div class="asset-box brla-kyber-box">
+                    <h4>Venda p/ BRLA (KyberSwap)</h4>
+                    <div class="step" style="justify-content: center;">
+                        <span class="value brla-kyber-received" style="font-size: 0.85rem">0.00 BRLA</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <div class="profit-amount brla-kyber-profit-brl">R$ 0.00</div>
+                        <div class="profit-percentage brla-kyber-profit-pct">0.00%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- News Modal -->
+    <div id="news-modal-overlay" class="modal-overlay hidden" onclick="closeNewsModal()"></div>
+    <div id="news-modal" class="news-modal glass-panel hidden">
+        <div class="modal-header">
+            <h2 id="news-modal-title"><i class="fa-solid fa-newspaper"></i> Últimas Notícias</h2>
+            <button class="close-modal-btn" onclick="closeNewsModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-content-body">
+            <div id="news-loading" class="loading-state">
+                <div class="spinner"></div>
+                <p>Buscando notícias no radar...</p>
+            </div>
+            <div id="news-list" class="news-list hidden">
+                <!-- News items go here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module" src="/script.js"></script>
+</body>
+</html>

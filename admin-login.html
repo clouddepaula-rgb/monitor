@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Painel de Administração ArbDash.">
+    <meta property="og:title" content="Admin Login | ArbDash">
+    <meta property="og:description" content="Acesso Administrativo ao ArbDash">
+    <meta property="og:type" content="website">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co http://localhost:3000; img-src 'self' data: https://cryptologos.cc https://*.cryptologos.cc https://*.coingecko.com https://assets.coingecko.com https://wsrv.nl;">
+    <title>Admin Login | ArbDash</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/disable-devtool/disable-devtool.min.js"></script>
+    <script type="module">
+        import { supabaseClient } from '/supabase-config.js';
+        DisableDevtool({
+            ondevtoolopen: async function(type, next) {
+                document.body.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#050505;color:#ff3366;font-family:sans-serif;font-size:24px;font-weight:bold;">Acesso Negado: Inspecionar Elemento Proibido</div>';
+                try {
+                    await supabaseClient.auth.signOut();
+                } catch(e) {}
+                setTimeout(() => window.location.href = "/admin-login", 1000);
+            },
+            disableSelect: false,
+            disableCopy: false,
+            disableMenu: true
+        });
+    </script>
+</head>
+<body class="login-body">
+    <div class="bg-elements">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+    
+    <div class="login-container">
+        <div class="glass-panel login-panel" style="border-color: rgba(0, 255, 204, 0.4); box-shadow: 0 0 30px rgba(0, 255, 204, 0.1);">
+            <div class="login-header">
+                <div class="logo">
+                    <i class="fa-solid fa-shield-halved" style="color: var(--primary);"></i>
+                    <h1>Arb<span class="gradient-text">Dash</span> Admin</h1>
+                </div>
+                <p>Acesso Restrito ao Painel de Controle</p>
+            </div>
+            
+            <form id="login-form">
+                <div class="input-group-login">
+                    <label for="email">E-mail Administrativo</label>
+                    <div class="input-wrapper-login">
+                        <i class="fa-solid fa-envelope icon-left"></i>
+                        <input type="email" id="email" placeholder="admin@email.com" required>
+                    </div>
+                </div>
+                
+                <div class="input-group-login">
+                    <label for="password">Senha</label>
+                    <div class="input-wrapper-login">
+                        <i class="fa-solid fa-lock icon-left"></i>
+                        <input type="password" id="password" placeholder="••••••••" required>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn-primary" id="login-btn" style="margin-top: 1.5rem;">
+                    <i class="fa-solid fa-shield"></i> <span>Acessar Painel</span>
+                </button>
+                
+                <div class="form-footer" style="margin-top: 1rem;">
+                    <p><a href="/login"><i class="fa-solid fa-arrow-left"></i> Voltar para Login de Cliente</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast container for notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script type="module" src="/admin-login.js"></script>
+</body>
+</html>

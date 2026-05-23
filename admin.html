@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://cdn.jsdelivr.net/npm/chart.js; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co http://localhost:3000; img-src 'self' data: https://cryptologos.cc https://*.cryptologos.cc https://*.coingecko.com https://assets.coingecko.com https://wsrv.nl;">
+    <title>ArbDash | Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/disable-devtool/disable-devtool.min.js"></script>
+    <script type="module">
+        import { supabaseClient } from '/supabase-config.js';
+        DisableDevtool({
+            ondevtoolopen: async function(type, next) {
+                document.body.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#050505;color:#ff3366;font-family:sans-serif;font-size:24px;font-weight:bold;">Acesso Negado: Inspecionar Elemento Proibido</div>';
+                try {
+                    await supabaseClient.auth.signOut();
+                } catch(e) {}
+                setTimeout(() => window.location.href = "/admin-login", 1000);
+            },
+            disableSelect: false,
+            disableCopy: false,
+            disableMenu: true
+        });
+    </script>
+    <meta name="description" content="Painel de Administração do ArbDash. Gerencie usuários, planos e monitoramentos.">
+    <meta property="og:title" content="ArbDash | Admin Panel">
+    <meta property="og:description" content="Gestão e controle do Monitor de Arbitragem ArbDash.">
+    <meta property="og:type" content="website">
+</head>
+<body>
+    <div class="bg-elements">
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+    </div>
+    
+    <div class="admin-container">
+        <header class="admin-header">
+            <div class="logo">
+                <i class="fa-solid fa-shield-halved" style="color: var(--primary); font-size: 2rem;"></i>
+                <h1 style="font-size: 2rem;">ArbDash <span class="gradient-text">Admin</span></h1>
+            </div>
+            <button id="logout-btn" class="action-btn"><i class="fa-solid fa-desktop"></i> Ir para o Monitor</button>
+        </header>
+
+        <div class="admin-stats">
+            <div class="admin-stat-box glass-panel">
+                <h3>Total de Usuários</h3>
+                <div class="value" id="stat-total-users"><i class="fa-solid fa-spinner fa-spin" style="font-size: 1rem;"></i></div>
+            </div>
+            <div class="admin-stat-box glass-panel">
+                <h3>Usuários Online Agora</h3>
+                <div class="value" id="stat-online-users"><i class="fa-solid fa-spinner fa-spin" style="font-size: 1rem;"></i></div>
+            </div>
+            <div class="admin-stat-box glass-panel">
+                <h3>Horas Totais no Monitor</h3>
+                <div class="value" id="stat-total-time"><i class="fa-solid fa-spinner fa-spin" style="font-size: 1rem;"></i></div>
+            </div>
+        </div>
+
+        <div class="chart-container glass-panel">
+            <canvas id="usageChart"></canvas>
+        </div>
+
+
+
+        <div class="users-table-wrapper glass-panel">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Plano Atual</th>
+                        <th>Vencimento do Acesso</th>
+                        <th>Uso Acumulado</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+                    <tr><td colspan="6" style="text-align:center; padding: 3rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Carregando sistema de usuários...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script type="module" src="/admin.js"></script>
+</body>
+</html>
