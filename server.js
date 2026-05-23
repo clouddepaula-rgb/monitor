@@ -425,7 +425,7 @@ wss.on('connection', (ws) => {
     // Send latest known prices immediately upon connection
     for (const [exId, data] of Object.entries(latestCexPrices)) {
         if (data.ask || data.bid) {
-            ws.send(JSON.stringify({ type: 'price_update', exId, ask: data.ask, bid: data.bid }));
+            ws.send(JSON.stringify({ type: 'price_update', exId, ask: data.ask, bid: data.bid, asks: data.asks, bids: data.bids }));
         }
     }
 });

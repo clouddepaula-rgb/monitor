@@ -20,14 +20,12 @@ const checkSession = async () => {
         const mainContainer = document.getElementById('main-app-container');
         if (mainContainer) mainContainer.style.display = 'block';
         
-        setTimeout(async () => {
-            if (typeof loadPreferences === 'function') await loadPreferences();
-            if (typeof loadHistory === 'function') await loadHistory();
-            if (typeof sendHeartbeat === 'function') {
-                await sendHeartbeat();
-                setInterval(sendHeartbeat, 60000);
-            }
-        }, 500);
+        if (typeof loadPreferences === 'function') loadPreferences();
+        if (typeof loadHistory === 'function') loadHistory();
+        if (typeof sendHeartbeat === 'function') {
+            sendHeartbeat();
+            setInterval(sendHeartbeat, 60000);
+        }
     }
 };
 
