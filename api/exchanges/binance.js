@@ -1,0 +1,15 @@
+const { verifyAuth } = require('../util.js');
+
+module.exports = async (req, res) => {
+    const user = await verifyAuth(req);
+    if (!user) return res.status(401).json({ error: 'Unauthorized' });
+
+    try {
+        // Vercel Node.js 18+ includes global fetch
+        const response = await fetch('https://api.binance.com/api/v3/depth?symbol=USDTBRL&limit=20');
+        const data = await response.json();
+        res.status(200).json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Erro no proxy da Binance.' });
+    }
+};

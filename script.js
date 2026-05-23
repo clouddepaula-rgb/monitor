@@ -1,12 +1,6 @@
 import { supabaseClient } from './supabase-config.js';
 
-const getApiBaseUrl = () => {
-    if (window.location.port && window.location.port !== '3000') {
-        return `${window.location.protocol}//${window.location.hostname}:3000`;
-    }
-    return window.location.origin;
-};
-const API_BASE = getApiBaseUrl();
+const API_BASE = "";
 
 // Supabase Session Check
 let currentUser = null;
@@ -544,48 +538,149 @@ const calculateCexCex = () => {
     }
 };
 
-// Backend WebSocket Manager
-let backendWS = null;
-let backendWSReconnecting = false;
+// Local Orderbooks for Delta logic
+const localBooks = {
+    bybit: { asks: [], bids: [] },
+    bitget: { asks: [], bids: [] }
+};
+
+const applyDelta = (exId, side, deltas, isAsk) => {
+    const map = new Map();
+    localBooks[exId][side].forEach(p => map.set(p[0], p[1]));
+    deltas.forEach(p => {
+        if (parseFloat(p[1]) === 0) map.delete(p[0]);
+        else map.set(p[0], p[1]);
+    });
+    const updated = Array.from(map.entries()).map(e => [e[0], e[1]]);
+    if (isAsk) updated.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]));
+    else updated.sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]));
+    localBooks[exId][side] = updated;
+};
 
 const initWebSockets = () => {
-    if (backendWSReconnecting) return;
-    
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = API_BASE.replace(/^https?:\/\//, `${protocol}//`);
-    
-    backendWS = new WebSocket(wsUrl);
+    if (typeof updateApiStatus === 'function') updateApiStatus(true);
 
-    backendWS.onopen = () => {
-        console.log('[Frontend] Conectado ao servidor WebSocket do Backend');
-        backendWSReconnecting = false;
-        if (typeof updateApiStatus === 'function') updateApiStatus(true);
+    // Binance
+    const connectBinanceWS = () => {
+        const wsBinance = new WebSocket('wss://stream.binance.com:9443/ws/usdtbrl@depth20@100ms');
+        wsBinance.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.a && msg.b) updateCexPrice('binance', parseFloat(msg.a[0][0]), parseFloat(msg.b[0][0]), msg.a, msg.b);
+            } catch(e){}
+        };
+        wsBinance.onclose = () => setTimeout(connectBinanceWS, 5000);
     };
+    connectBinanceWS();
 
-    backendWS.onmessage = (event) => {
+    // Bybit
+    const connectBybitWS = () => {
+        const wsBybit = new WebSocket('wss://stream.bybit.com/v5/public/spot');
+        let pingInterval;
+        wsBybit.onopen = () => {
+            wsBybit.send(JSON.stringify({ "op": "subscribe", "args": ["orderbook.50.USDTBRL"] }));
+            pingInterval = setInterval(() => {
+                if (wsBybit.readyState === WebSocket.OPEN) {
+                    wsBybit.send(JSON.stringify({ "req_id": new Date().getTime().toString(), "op": "ping" }));
+                }
+            }, 20000);
+        };
+        wsBybit.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                if (msg.topic === 'orderbook.50.USDTBRL' && msg.data) {
+                    if (msg.type === 'snapshot') {
+                        if (msg.data.a) { localBooks.bybit.asks = msg.data.a; localBooks.bybit.asks.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])); }
+                        if (msg.data.b) { localBooks.bybit.bids = msg.data.b; localBooks.bybit.bids.sort((a, b) => parseFloat(b[0]) - parseFloat(a[0])); }
+                    } else if (msg.type === 'delta') {
+                        if (msg.data.a) applyDelta('bybit', 'asks', msg.data.a, true);
+                        if (msg.data.b) applyDelta('bybit', 'bids', msg.data.b, false);
+                    }
+                    if (localBooks.bybit.asks.length > 0 && localBooks.bybit.bids.length > 0) {
+                        updateCexPrice('bybit', parseFloat(localBooks.bybit.asks[0][0]), parseFloat(localBooks.bybit.bids[0][0]), localBooks.bybit.asks, localBooks.bybit.bids);
+                    }
+                }
+            } catch(e){}
+        };
+        wsBybit.onclose = () => { clearInterval(pingInterval); setTimeout(connectBybitWS, 5000); };
+    };
+    connectBybitWS();
+
+    // Bitget
+    const connectBitgetWS = () => {
+        const wsBitget = new WebSocket('wss://ws.bitget.com/v2/ws/public');
+        let pingInterval;
+        wsBitget.onopen = () => {
+            wsBitget.send(JSON.stringify({ "op": "subscribe", "args": [{ "instType": "SPOT", "channel": "books", "instId": "USDTBRL" }] }));
+            pingInterval = setInterval(() => {
+                if (wsBitget.readyState === WebSocket.OPEN) wsBitget.send("ping");
+            }, 25000);
+        };
+        wsBitget.onmessage = (event) => {
+            try {
+                const msgStr = event.data;
+                if (msgStr === 'pong') return;
+                const msg = JSON.parse(msgStr);
+                if (msg.data && msg.data[0] && msg.data[0].instId === 'USDTBRL') {
+                    if (msg.action === 'snapshot') {
+                        if (msg.data[0].asks) { localBooks.bitget.asks = msg.data[0].asks; localBooks.bitget.asks.sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])); }
+                        if (msg.data[0].bids) { localBooks.bitget.bids = msg.data[0].bids; localBooks.bitget.bids.sort((a, b) => parseFloat(b[0]) - parseFloat(a[0])); }
+                    } else if (msg.action === 'update') {
+                        if (msg.data[0].asks) applyDelta('bitget', 'asks', msg.data[0].asks, true);
+                        if (msg.data[0].bids) applyDelta('bitget', 'bids', msg.data[0].bids, false);
+                    }
+                    if (localBooks.bitget.asks.length > 0 && localBooks.bitget.bids.length > 0) {
+                        updateCexPrice('bitget', parseFloat(localBooks.bitget.asks[0][0]), parseFloat(localBooks.bitget.bids[0][0]), localBooks.bitget.asks, localBooks.bitget.bids);
+                    }
+                }
+            } catch(e){}
+        };
+        wsBitget.onclose = () => { clearInterval(pingInterval); setTimeout(connectBitgetWS, 5000); };
+    };
+    connectBitgetWS();
+
+    // Kucoin
+    const connectKucoinWS = async () => {
         try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'price_update') {
-                updateCexPrice(data.exId, data.ask, data.bid, data.asks, data.bids);
-            }
+            const res = await fetch(`${API_BASE}/api/kucoin/bullet-public`, { method: 'POST' });
+            if (!res.ok) throw new Error("Failed to get Kucoin token");
+            const data = await res.json();
+            const token = data.data.token;
+            const endpoint = data.data.instanceServers[0].endpoint;
+            
+            const wsKucoin = new WebSocket(`${endpoint}?token=${token}`);
+            let pingInterval;
+            
+            wsKucoin.onopen = () => {
+                wsKucoin.send(JSON.stringify({
+                    "id": new Date().getTime(),
+                    "type": "subscribe",
+                    "topic": "/spotMarket/level2Depth50:USDT-BRL",
+                    "privateChannel": false,
+                    "response": true
+                }));
+                pingInterval = setInterval(() => {
+                    if (wsKucoin.readyState === WebSocket.OPEN) {
+                        wsKucoin.send(JSON.stringify({ "id": new Date().getTime(), "type": "ping" }));
+                    }
+                }, 15000);
+            };
+            wsKucoin.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'message' && msg.topic === '/spotMarket/level2Depth50:USDT-BRL' && msg.data) {
+                        if (msg.data.asks && msg.data.bids) {
+                            updateCexPrice('kucoin', parseFloat(msg.data.asks[0][0]), parseFloat(msg.data.bids[0][0]), msg.data.asks, msg.data.bids);
+                        }
+                    }
+                } catch(e){}
+            };
+            wsKucoin.onclose = () => { clearInterval(pingInterval); setTimeout(connectKucoinWS, 5000); };
         } catch (e) {
-            console.error('Erro ao processar mensagem do WS:', e);
+            setTimeout(connectKucoinWS, 10000);
         }
     };
-
-    backendWS.onclose = () => {
-        console.log('[Frontend] Desconectado do Backend. Tentando reconectar em 5s...');
-        backendWSReconnecting = true;
-        if (typeof updateApiStatus === 'function') updateApiStatus(false);
-        setTimeout(() => {
-            backendWSReconnecting = false;
-            initWebSockets();
-        }, 5000);
-    };
-
-    backendWS.onerror = (error) => {
-        console.error('[Frontend] Erro no WebSocket do Backend');
-    };
+    connectKucoinWS();
 };
 
 const updateCexPrice = (exId, ask, bid, asks, bids) => {

@@ -2,7 +2,7 @@ import { supabaseClient } from './supabase-config.js';
 
 let currentUser = null;
 let usageChart = null;
-const API_URL = 'http://localhost:3000/api/admin/users';
+const API_URL = '/api/admin/users';
 
 const checkAdminSession = async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
