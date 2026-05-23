@@ -17,6 +17,9 @@ const checkSession = async () => {
         window.location.href = '/login';
     } else {
         currentUser = session.user;
+        const mainContainer = document.getElementById('main-app-container');
+        if (mainContainer) mainContainer.style.display = 'block';
+        
         setTimeout(async () => {
             if (typeof loadPreferences === 'function') await loadPreferences();
             if (typeof loadHistory === 'function') await loadHistory();

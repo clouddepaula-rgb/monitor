@@ -20,6 +20,9 @@ const checkAdminSession = async () => {
         return;
     }
     
+    const mainAdminContainer = document.getElementById('main-admin-container');
+    if (mainAdminContainer) mainAdminContainer.style.display = 'block';
+    
     loadDashboard();
 };
 
