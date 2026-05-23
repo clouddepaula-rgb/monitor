@@ -941,7 +941,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // Start loop
 initWebSockets();
 fetchArbitrageData();
-setInterval(fetchArbitrageData, 10000);
+setInterval(fetchArbitrageData, 2500);
 
 // Auto Refresh System Logic
 // Atualiza o sistema inteiro automaticamente quando o usuário voltar para a aba
