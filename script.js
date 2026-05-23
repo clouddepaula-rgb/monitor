@@ -566,7 +566,9 @@ const initWebSockets = () => {
         wsBinance.onmessage = (event) => {
             try {
                 const msg = JSON.parse(event.data);
-                if (msg.a && msg.b) updateCexPrice('binance', parseFloat(msg.a[0][0]), parseFloat(msg.b[0][0]), msg.a, msg.b);
+                if (msg.asks && msg.bids && msg.asks.length > 0 && msg.bids.length > 0) {
+                    updateCexPrice('binance', parseFloat(msg.asks[0][0]), parseFloat(msg.bids[0][0]), msg.asks, msg.bids);
+                }
             } catch(e){}
         };
         wsBinance.onclose = () => setTimeout(connectBinanceWS, 5000);
