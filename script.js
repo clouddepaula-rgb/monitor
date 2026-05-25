@@ -235,22 +235,28 @@ const getInputs = () => {
     EXCHANGES.forEach(ex => {
         let rawTrade = document.getElementById(`${ex.id}-trading-fee`).value.toString().replace(',', '.');
         let rawWith  = document.getElementById(`${ex.id}-withdrawal-fee`).value.toString().replace(',', '.');
+        let rawWithBrl = document.getElementById(`${ex.id}-withdrawal-brl-fee`).value.toString().replace(',', '.');
         
-        // Força as taxas da Bybit para 0.2% Taker e 0.10 USDT Saque
-        if (ex.id === 'bybit') {
-            rawTrade = '0.2';
-            rawWith = '0.10';
-            document.getElementById(`bybit-trading-fee`).value = 0.2;
-            document.getElementById(`bybit-withdrawal-fee`).value = 0.10;
-        }
-
         fees[ex.id] = {
             trading:    Math.abs(parseFloat(rawTrade)) || 0,
-            withdrawal: Math.abs(parseFloat(rawWith))  || 0
+            withdrawal: Math.abs(parseFloat(rawWith))  || 0,
+            withdrawalBrl: Math.abs(parseFloat(rawWithBrl)) || 0
         };
     });
     return { investment, slippage, fees };
 };
+
+// Add input event listeners to auto-save preferences and recalculate
+investmentInput.addEventListener('input', () => {
+    if (typeof triggerSavePreferences === 'function') triggerSavePreferences();
+    calculateCexCex();
+});
+document.querySelectorAll('.fee-input input').forEach(input => {
+    input.addEventListener('input', () => {
+        if (typeof triggerSavePreferences === 'function') triggerSavePreferences();
+        calculateCexCex();
+    });
+});
 
 // --- DATABASE SYNC LOGIC ---
 let saveTimeout = null;
@@ -284,6 +290,9 @@ async function loadPreferences() {
                     if (data.fees[ex.id]) {
                         document.getElementById(`${ex.id}-trading-fee`).value = data.fees[ex.id].trading;
                         document.getElementById(`${ex.id}-withdrawal-fee`).value = data.fees[ex.id].withdrawal;
+                        if (data.fees[ex.id].withdrawalBrl !== undefined) {
+                            document.getElementById(`${ex.id}-withdrawal-brl-fee`).value = data.fees[ex.id].withdrawalBrl;
+                        }
                     }
                 });
             }
@@ -495,9 +504,12 @@ const calculateCexCex = () => {
     const brlBruto = usdtLiquido * sellPrice;
 
     // 5. Desconta taxa de trading da venda
-    const brlLiquido = brlBruto * (1 - sellFee.trading / 100);
+    const brlAposTrade = brlBruto * (1 - sellFee.trading / 100);
 
-    // 6. Lucro final
+    // 6. Desconta taxa de saque em BRL
+    const brlLiquido = Math.max(0, brlAposTrade - (sellFee.withdrawalBrl || 0));
+
+    // 7. Lucro final
     const lucro    = brlLiquido - investment;
     const lucroPct = (lucro / investment) * 100;
 
