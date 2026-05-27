@@ -15,7 +15,6 @@ const checkAdminSession = async () => {
     // Check if user is admin
     const { data } = await supabaseClient.from('profiles').select('is_admin').eq('id', currentUser.id).single();
     if (!data || !data.is_admin) {
-        alert('Acesso negado. Esta página é restrita a administradores.\nSe você for o dono, altere a coluna "is_admin" do seu perfil para TRUE no banco de dados.');
         window.location.href = '/';
         return;
     }
