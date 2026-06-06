@@ -15,6 +15,8 @@ const checkSession = async () => {
     const { data } = await supabaseClient.from('profiles').select('is_admin').eq('id', currentUser.id).single();
     if (data && data.is_admin) {
         document.getElementById('admin-link').style.display = 'inline-flex';
+        const addPanel = document.getElementById('admin-add-token-panel');
+        if (addPanel) addPanel.style.display = 'block';
     }
 
     const mainContainer = document.getElementById('main-depeg-container');
