@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://*.binance.com:9443 wss://stream.binance.com wss://stream.bybit.com wss://ws.bitget.com wss://*.kucoin.com http://localhost:3000 https://api.coingecko.com https://api.binance.com https://apiv5.paraswap.io https://aggregator-api.kyberswap.com https://api.telegram.org; img-src 'self' data: https://cryptologos.cc https://*.cryptologos.cc https://*.coingecko.com https://assets.coingecko.com https://wsrv.nl;">
+    <title>ArbDash | Monitor de Depegs</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Outfit:wght@300;400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/disable-devtool/disable-devtool.min.js"></script>
+    <script type="module">
+        import { supabaseClient } from '/supabase-config.js';
+        DisableDevtool({
+            ondevtoolopen: async function(type, next) {
+                document.body.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#050505;color:#ff3366;font-family:sans-serif;font-size:24px;font-weight:bold;">Acesso Negado: Inspecionar Elemento Proibido</div>';
+                try {
+                    await supabaseClient.auth.signOut();
+                } catch(e) {}
+                setTimeout(() => window.location.href = "/login", 1000);
+            },
+            disableSelect: false,
+            disableCopy: false,
+            disableMenu: true
+        });
+    </script>
+</head>
+<body>
+    <div class="bg-elements">
+        <div class="bg-grid-overlay"></div>
+        <div class="bg-radial-gradient"></div>
+    </div>
+    
+    <div class="app-container" style="display: none;" id="main-depeg-container">
+        <header>
+            <div class="connection-status" id="api-status">
+                <div class="status-dot"></div>
+                <span class="status-text">Conectando...</span>
+            </div>
+            <div class="logo">
+                <i class="fa-solid fa-triangle-exclamation" style="color: var(--primary);"></i>
+                <h1>Depeg<span class="gradient-text">Monitor</span></h1>
+            </div>
+            <p>Monitoramento Real-Time de Stablecoins e Ativos Pareados</p>
+            <div class="header-actions" style="margin-top: 1rem;">
+                <button id="sound-toggle" class="sound-toggle-btn off">
+                    <i class="fa-solid fa-bell-slash"></i> Alarmes: OFF
+                </button>
+                <div class="news-buttons">
+                    <a href="/" class="news-btn pulse-border">
+                        <i class="fa-solid fa-chart-line"></i> Arbitragem
+                    </a>
+                    <a href="/admin" id="admin-link" class="news-btn pulse-border" style="display: none; border-color: var(--secondary); color: var(--secondary);">
+                        <i class="fa-solid fa-shield-halved"></i> Admin
+                    </a>
+                    <button id="logout-btn" class="news-btn" style="border-color: var(--danger); color: var(--danger);">
+                        <i class="fa-solid fa-right-from-bracket"></i> Sair
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <section class="config-panel glass-panel">
+                <div class="module-header" style="justify-content: center; border-bottom: none; margin-bottom: 0.5rem;">
+                    <h2>Ativos <span class="gradient-text">Monitorados</span></h2>
+                </div>
+                
+                <div class="results-panel" id="depeg-cards-container" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-top: 1.5rem; display: grid;">
+                    <!-- Cards de depeg vão aqui -->
+                    <div class="loading-state" id="loading-cards">
+                        <div class="spinner"></div>
+                        <p>Carregando monitoramento...</p>
+                    </div>
+                </div>
+                
+                <div class="add-token-container" style="margin-top: 3rem; border-top: 1px solid var(--border-color); padding-top: 2.5rem;">
+                    
+                    <!-- Cabeçalho da Seção -->
+                    <div style="text-align: center; margin-bottom: 2rem;">
+                        <div style="display: inline-flex; align-items: center; gap: 10px; background: rgba(0,255,102,0.07); border: 1px solid rgba(0,255,102,0.2); padding: 0.5rem 1.25rem; border-radius: 30px; margin-bottom: 1rem;">
+                            <i class="fa-solid fa-plus" style="color: var(--profit); font-size: 0.85rem;"></i>
+                            <span style="color: var(--profit); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">Adicionar Ativo ao Monitor</span>
+                        </div>
+                        <p style="color: var(--text-muted); font-size: 0.9rem; max-width: 550px; margin: 0 auto; line-height: 1.6;">
+                            Adicione qualquer stablecoin ou ativo pareado para monitorar em tempo real. O sistema vai alertá-lo quando o desvio atingir o gatilho configurado.
+                        </p>
+                    </div>
+
+                    <form id="add-token-form">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; max-width: 900px; margin: 0 auto;">
+
+                            <!-- Busca de Moeda (CoinGecko Search) -->
+                            <div style="display: flex; flex-direction: column; gap: 6px; position: relative; grid-column: span 2;" id="coin-search-wrapper">
+                                <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-magnifying-glass" style="color: var(--primary);"></i> Buscar Moeda
+                                    <span style="background: rgba(0,255,102,0.1); color: var(--profit); font-size: 0.65rem; padding: 2px 8px; border-radius: 4px; font-weight: 600;">via CoinGecko</span>
+                                </label>
+
+                                <!-- Campo de busca visível -->
+                                <div style="position: relative;">
+                                    <i class="fa-solid fa-search" style="position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 0.9rem; pointer-events: none;"></i>
+                                    <input type="text" id="coin-search-input" placeholder="Digite o nome ou símbolo da moeda... (ex: USDC, Tether, Dai)"
+                                        autocomplete="off"
+                                        style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; padding: 0.85rem 1rem 0.85rem 2.75rem; border-radius: 8px; outline: none; font-family: var(--font-family); font-size: 0.95rem; transition: border-color 0.2s; width: 100%;"
+                                        onfocus="this.style.borderColor='var(--primary)'" onblur="setTimeout(()=>{ document.getElementById('coin-search-results').style.display='none'; }, 200)">
+                                    <i class="fa-solid fa-spinner fa-spin" id="search-spinner" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); display: none;"></i>
+                                </div>
+
+                                <!-- Dropdown de resultados -->
+                                <div id="coin-search-results" style="display: none; position: absolute; top: calc(100% - 4px); left: 0; right: 0; z-index: 100; background: #0f0f0f; border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 10px 10px; max-height: 320px; overflow-y: auto; box-shadow: 0 20px 40px rgba(0,0,0,0.8);">
+                                </div>
+
+                                <!-- Moeda selecionada -->
+                                <div id="selected-coin-display" style="display: none; align-items: center; gap: 10px; background: rgba(0,255,102,0.07); border: 1px solid rgba(0,255,102,0.25); padding: 0.7rem 1rem; border-radius: 8px; margin-top: 2px;">
+                                    <img id="selected-coin-thumb" src="" width="24" height="24" style="border-radius: 50%;" alt="">
+                                    <div style="flex: 1;">
+                                        <span id="selected-coin-name" style="font-weight: 700; color: #fff;"></span>
+                                        <span id="selected-coin-ticker" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 0.85rem; margin-left: 8px;"></span>
+                                    </div>
+                                    <span style="font-size: 0.75rem; color: var(--profit); font-weight: 600;">✓ Selecionada</span>
+                                    <button type="button" id="clear-coin-btn" title="Limpar seleção"
+                                        style="background: none; border: none; color: var(--danger); cursor: pointer; font-size: 1.1rem; padding: 0 4px; line-height: 1;">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Pesquise pelo nome ou símbolo — resultados direto da CoinGecko</span>
+
+                                <!-- Inputs ocultos preenchidos automaticamente ao selecionar -->
+                                <input type="hidden" id="new-symbol">
+                                <input type="hidden" id="new-coingecko">
+                            </div>
+
+                            <!-- Preço-Alvo -->
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label for="new-peg" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-bullseye" style="color: var(--primary);"></i> Preço-Alvo (Peg)
+                                </label>
+                                <input type="number" id="new-peg" placeholder="Ex: 1.00 para USD" step="0.0001" required
+                                    style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; padding: 0.85rem 1rem; border-radius: 8px; outline: none; font-family: var(--font-mono); font-size: 0.95rem; transition: border-color 0.2s; width: 100%;"
+                                    onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-color)'">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Valor que o ativo deveria valer</span>
+                            </div>
+
+                            <!-- Moeda de Referência -->
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label for="new-currency" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-dollar-sign" style="color: var(--primary);"></i> Moeda de Ref.
+                                </label>
+                                <select id="new-currency"
+                                    style="background: rgba(0,0,0,0.6); border: 1px solid var(--border-color); color: #fff; padding: 0.85rem 1rem; border-radius: 8px; outline: none; font-family: var(--font-mono); font-size: 0.95rem; transition: border-color 0.2s; width: 100%; cursor: pointer;"
+                                    onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-color)'">
+                                    <option value="USD">🇺🇸 USD — Dólar</option>
+                                    <option value="BRL">🇧🇷 BRL — Real</option>
+                                    <option value="BTC">₿ BTC — Bitcoin</option>
+                                </select>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Comparar preço em qual moeda?</span>
+                            </div>
+
+                            <!-- Rede -->
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label for="new-network" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-network-wired" style="color: var(--primary);"></i> Rede
+                                </label>
+                                <select id="new-network"
+                                    style="background: rgba(0,0,0,0.6); border: 1px solid var(--border-color); color: #fff; padding: 0.85rem 1rem; border-radius: 8px; outline: none; font-family: var(--font-mono); font-size: 0.95rem; transition: border-color 0.2s; width: 100%; cursor: pointer;"
+                                    onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-color)'">
+                                    <option value="Global">🌐 Global (Agregado)</option>
+                                    <option value="Polygon">🟣 Polygon</option>
+                                    <option value="Ethereum">🔷 Ethereum</option>
+                                    <option value="BSC">🟡 BNB Smart Chain</option>
+                                    <option value="Solana">🟢 Solana</option>
+                                </select>
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Rede monitorada</span>
+                            </div>
+
+                            <!-- Gatilho de Alerta -->
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label for="new-threshold" style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; display: flex; align-items: center; gap: 6px;">
+                                    <i class="fa-solid fa-bell" style="color: var(--primary);"></i> Gatilho de Alerta
+                                </label>
+                                <input type="number" id="new-threshold" placeholder="Ex: 10" step="1" min="1" max="99" value="10" required
+                                    style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); color: #fff; padding: 0.85rem 1rem; border-radius: 8px; outline: none; font-family: var(--font-mono); font-size: 0.95rem; transition: border-color 0.2s; width: 100%;"
+                                    onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='var(--border-color)'">
+                                <span style="font-size: 0.75rem; color: var(--text-muted);">Alertar quando cair/subir X% do alvo</span>
+                            </div>
+
+                        </div>
+
+                        <!-- Botão de Submit -->
+                        <div style="display: flex; justify-content: center; margin-top: 2rem;">
+                            <button type="submit" id="submit-token-btn"
+                                style="background: rgba(0,255,102,0.1); border: 1px solid var(--profit); color: var(--profit); padding: 0.9rem 2.5rem; border-radius: 10px; font-family: var(--font-family); font-size: 1rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.25s ease; letter-spacing: 0.03em;"
+                                onmouseover="this.style.background='rgba(0,255,102,0.2)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 25px rgba(0,255,102,0.2)'"
+                                onmouseout="this.style.background='rgba(0,255,102,0.1)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
+                                <i class="fa-solid fa-satellite-dish"></i>
+                                Iniciar Monitoramento
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="glass-panel" style="margin-top: 2rem; padding: 2rem;">
+                <div class="module-header" style="justify-content: flex-start; margin-bottom: 1rem;">
+                    <h4><i class="fa-solid fa-clock-rotate-left"></i> Histórico de Alertas</h4>
+                </div>
+                <div class="history-list" id="depeg-history-list" style="max-height: 400px; overflow-y: auto;">
+                    <div class="history-item" style="justify-content: center; color: var(--text-muted); border: none; background: transparent;">
+                        Aguardando dados...
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Template for Depeg Card -->
+    <template id="depeg-card-template">
+        <div class="exchange-card glass-panel depeg-card" style="padding: 1.5rem; transition: all 0.3s ease;">
+            <div class="card-glow"></div>
+            <div class="exchange-header" style="margin-bottom: 1rem; align-items: flex-start;">
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <h2 class="token-name" style="font-size: 1.4rem; display: flex; align-items: center; gap: 6px;">Token</h2>
+                    <span class="token-network" style="font-size: 0.75rem; background: rgba(255,255,255,0.05); color: var(--text-muted); padding: 2px 8px; border-radius: 4px; display: inline-block; width: fit-content; font-family: var(--font-mono); border: 1px solid rgba(255,255,255,0.1);">Global</span>
+                </div>
+                <div class="settings-actions" style="display: flex; gap: 8px;">
+                    <button class="action-btn toggle-active-btn" title="Ativar/Desativar" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 5px; font-size: 1.1rem; transition: color 0.2s;"><i class="fa-solid fa-power-off"></i></button>
+                    <button class="action-btn delete-btn" title="Remover" style="background: transparent; border: none; color: var(--danger); cursor: pointer; padding: 5px; font-size: 1.1rem; transition: transform 0.2s;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+            
+            <div class="price-section" style="text-align: center; margin-bottom: 1.5rem;">
+                <div class="current-price" style="font-size: 2.2rem; font-weight: 700; font-family: var(--font-mono); margin-bottom: 5px; transition: color 0.3s ease;">0.0000</div>
+                <div class="peg-target" style="color: var(--text-muted); font-size: 0.9rem;">Alvo: <span class="target-val" style="font-family: var(--font-mono); font-weight: 600;">1.00 USD</span></div>
+            </div>
+
+            <div class="deviation-box" style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 1rem; text-align: center; margin-bottom: 1.5rem; border: 1px solid rgba(255,255,255,0.05); transition: all 0.3s ease;">
+                <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 5px;">Desvio Atual</div>
+                <div class="deviation-val" style="font-size: 1.4rem; font-weight: 700; font-family: var(--font-mono); transition: color 0.3s ease;">0.00%</div>
+            </div>
+
+            <div class="threshold-control" style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);">
+                    <span>Gatilho de Alerta:</span>
+                    <span class="threshold-display" style="font-family: var(--font-mono); font-weight: 600; color: #fff;">±0.50%</span>
+                </div>
+                <input type="range" class="threshold-slider" min="1" max="99" step="1" value="10" style="width: 100%; cursor: pointer; accent-color: var(--primary);">
+            </div>
+        </div>
+    </template>
+
+    <script type="module" src="/depeg.js"></script>
+</body>
+</html>

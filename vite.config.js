@@ -37,7 +37,8 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         login: resolve(__dirname, 'login.html'),
         admin: resolve(__dirname, 'admin.html'),
-        adminLogin: resolve(__dirname, 'admin-login.html')
+        adminLogin: resolve(__dirname, 'admin-login.html'),
+        depeg: resolve(__dirname, 'depeg.html')
       },
       output: {
         entryFileNames: 'assets/app-[hash].js',
