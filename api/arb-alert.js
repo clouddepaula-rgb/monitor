@@ -348,14 +348,16 @@ module.exports = async (req, res) => {
     }
 
     // Carrega preferências atualizadas do usuário no Supabase
+    let prefsLoaded = false;
+    let prefsDebug = 'not_attempted';
     try {
         // Se a requisição veio do frontend com um token de usuário, encaminha esse token para o Supabase
         const authHeader = req.headers['authorization'];
-        const userToken = (authHeader && authHeader.startsWith('Bearer ') && authHeader.substring(7) !== cronSecret) 
-            ? authHeader 
-            : `Bearer ${SUPABASE_KEY}`;
+        const hasUserToken = authHeader && authHeader.startsWith('Bearer ') && authHeader.substring(7) !== cronSecret;
+        const userToken = hasUserToken ? authHeader : `Bearer ${SUPABASE_KEY}`;
+        prefsDebug = hasUserToken ? 'user_jwt' : 'anon_key';
 
-        const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?order=updated_at.desc&limit=1`, {
+        const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?select=investment,fees&order=updated_at.desc&limit=1`, {
             headers: {
                 'apikey': SUPABASE_KEY,
                 'Authorization': userToken
@@ -363,10 +365,12 @@ module.exports = async (req, res) => {
         });
         if (prefRes.ok) {
             const prefs = await prefRes.json();
+            prefsDebug += `|rows:${prefs.length}`;
             if (prefs && prefs.length > 0) {
                 const p = prefs[0];
-                if (p.investment) {
+                if (p.investment != null) {
                     INVESTMENT = parseFloat(p.investment);
+                    prefsLoaded = true;
                 }
                 if (p.fees) {
                     for (const [id, f] of Object.entries(p.fees)) {
@@ -380,8 +384,11 @@ module.exports = async (req, res) => {
                     }
                 }
             }
+        } else {
+            prefsDebug += `|http:${prefRes.status}`;
         }
     } catch (err) {
+        prefsDebug += `|err:${err.message}`;
         console.error('Failed to load user preferences from Supabase:', err.message);
     }
 
@@ -427,6 +434,9 @@ module.exports = async (req, res) => {
         return res.status(200).json({
             status: 'alerted',
             opportunities: newOpps.length,
+            investment: INVESTMENT,
+            prefsLoaded,
+            prefsDebug,
             routes: newOpps.map(o => `${o.type}: ${o.buyName}→${o.sellName} (${o.lucroPct.toFixed(2)}%)`),
             errors: fetchErrors
         });
