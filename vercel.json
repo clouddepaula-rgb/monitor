@@ -9,7 +9,7 @@
   ],
   "crons": [
     {
-      "path": "/api/cron/arb-alert",
+      "path": "/api/arb-alert",
       "schedule": "* * * * *"
     }
   ]
