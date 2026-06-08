@@ -9,6 +9,7 @@ const TG_CHAT_ID = process.env.TG_CHAT_ID;
 
 const SUPABASE_URL  = 'https://vaahwukpupiiimnuagfa.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_5NbtFzk47B5qmGqNJbIL5A_PlTmSwjC';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || SUPABASE_KEY;
 
 const THRESHOLD_PCT = 0.22;       // Lucro mínimo para alertar
 const COOLDOWN_MS   = 3 * 60 * 1000; // 3 minutos entre alertas da mesma rota
@@ -351,16 +352,13 @@ module.exports = async (req, res) => {
     let prefsLoaded = false;
     let prefsDebug = 'not_attempted';
     try {
-        // Se a requisição veio do frontend com um token de usuário, encaminha esse token para o Supabase
-        const authHeader = req.headers['authorization'];
-        const hasUserToken = authHeader && authHeader.startsWith('Bearer ') && authHeader.substring(7) !== cronSecret;
-        const userToken = hasUserToken ? authHeader : `Bearer ${SUPABASE_KEY}`;
-        prefsDebug = hasUserToken ? 'user_jwt' : 'anon_key';
+        // Usa a service_role key para bypassar RLS e ler preferências de qualquer usuário
+        prefsDebug = SUPABASE_SERVICE_KEY !== SUPABASE_KEY ? 'service_key' : 'anon_key_fallback';
 
         const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?select=investment,fees&order=updated_at.desc&limit=1`, {
             headers: {
                 'apikey': SUPABASE_KEY,
-                'Authorization': userToken
+                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
             }
         });
         if (prefRes.ok) {
