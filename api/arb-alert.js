@@ -26,28 +26,28 @@ const EXCHANGES = {
         url: 'https://api.binance.com/api/v3/depth?symbol=USDTBRL&limit=5',
         parseAsks: (d) => d?.asks || [],
         parseBids: (d) => d?.bids || [],
-        fees: { trading: 0.10, withdrawal: 1.0, withdrawalBrl: 0 }
+        fees: { trading: 0.10, withdrawal: 0.07, withdrawalBrl: 3.60 }
     },
     kucoin: {
         name: 'KuCoin',
         url: 'https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol=USDT-BRL',
         parseAsks: (d) => d?.data?.asks || [],
         parseBids: (d) => d?.data?.bids || [],
-        fees: { trading: 0.10, withdrawal: 0, withdrawalBrl: 0 }
+        fees: { trading: 0.10, withdrawal: 0.80, withdrawalBrl: 0.00 }
     },
     bybit: {
         name: 'Bybit',
         url: 'https://api.bybit.com/v5/market/orderbook?category=spot&symbol=USDTBRL&limit=5',
         parseAsks: (d) => d?.result?.a || [],
         parseBids: (d) => d?.result?.b || [],
-        fees: { trading: 0.10, withdrawal: 0, withdrawalBrl: 0 }
+        fees: { trading: 0.10, withdrawal: 0.10, withdrawalBrl: 0.00 }
     },
     bitget: {
         name: 'Bitget',
         url: 'https://api.bitget.com/api/v2/spot/market/orderbook?symbol=USDTBRL&limit=5',
         parseAsks: (d) => d?.data?.asks || [],
         parseBids: (d) => d?.data?.bids || [],
-        fees: { trading: 0.10, withdrawal: 1.0, withdrawalBrl: 0 }
+        fees: { trading: 0.10, withdrawal: 0.20, withdrawalBrl: 2.60 }
     }
 };
 
