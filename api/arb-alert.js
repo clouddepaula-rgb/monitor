@@ -118,26 +118,33 @@ const updateCooldowns = async (routeKeys) => {
 // ============================================
 const fetchAllExchanges = async () => {
     const results = {};
+    const errors = [];
     const entries = Object.entries(EXCHANGES);
 
     const fetches = await Promise.allSettled(
         entries.map(async ([id, ex]) => {
-            const data = await fetchJson(ex.url);
-            const asks = ex.parseAsks(data);
-            const bids = ex.parseBids(data);
-            if (asks.length > 0 && bids.length > 0) {
-                return { id, ask: parseFloat(asks[0][0]), bid: parseFloat(bids[0][0]) };
+            try {
+                const data = await fetchJson(ex.url);
+                const asks = ex.parseAsks(data);
+                const bids = ex.parseBids(data);
+                if (asks.length > 0 && bids.length > 0) {
+                    return { id, ask: parseFloat(asks[0][0]), bid: parseFloat(bids[0][0]) };
+                }
+                throw new Error('Empty orderbook');
+            } catch (err) {
+                throw new Error(`${id} failed: ${err.message}`);
             }
-            return null;
         })
     );
 
     for (const r of fetches) {
         if (r.status === 'fulfilled' && r.value) {
             results[r.value.id] = r.value;
+        } else {
+            errors.push(r.reason.message);
         }
     }
-    return results;
+    return { results, errors };
 };
 
 // ============================================
@@ -322,10 +329,10 @@ module.exports = async (req, res) => {
 
     try {
         // 1. Busca orderbooks de todas as exchanges
-        const prices = await fetchAllExchanges();
+        const { results: prices, errors: fetchErrors } = await fetchAllExchanges();
         const exchangeCount = Object.keys(prices).length;
         if (exchangeCount < 2) {
-            return res.status(200).json({ status: 'skip', reason: `Only ${exchangeCount} exchanges online` });
+            return res.status(200).json({ status: 'skip', reason: `Only ${exchangeCount} exchanges online`, errors: fetchErrors });
         }
 
         // 2. Calcula oportunidades CEX/CEX e CEX/DEX em paralelo
@@ -361,7 +368,8 @@ module.exports = async (req, res) => {
         return res.status(200).json({
             status: 'alerted',
             opportunities: newOpps.length,
-            routes: newOpps.map(o => `${o.type}: ${o.buyName}→${o.sellName} (${o.lucroPct.toFixed(2)}%)`)
+            routes: newOpps.map(o => `${o.type}: ${o.buyName}→${o.sellName} (${o.lucroPct.toFixed(2)}%)`),
+            errors: fetchErrors
         });
 
     } catch (err) {
