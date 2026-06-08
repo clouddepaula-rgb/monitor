@@ -4,8 +4,8 @@
 // ============================================
 
 // --- CONFIG ---
-const TG_TOKEN   = '8803208618:AAHlkGYb5MhuNyD3RphUZbwLMPCBe6lD7Zs';
-const TG_CHAT_ID = '1836350347';
+const TG_TOKEN   = process.env.TG_TOKEN;
+const TG_CHAT_ID = process.env.TG_CHAT_ID;
 
 const SUPABASE_URL  = 'https://vaahwukpupiiimnuagfa.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_5NbtFzk47B5qmGqNJbIL5A_PlTmSwjC';
