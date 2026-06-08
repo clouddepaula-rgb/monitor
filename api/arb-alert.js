@@ -348,46 +348,71 @@ module.exports = async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Carrega preferências atualizadas do usuário no Supabase
+    // Carrega preferências: prioridade 1) POST body do frontend, 2) Supabase
     let prefsLoaded = false;
-    let prefsDebug = 'not_attempted';
-    try {
-        // Usa a service_role key para bypassar RLS e ler preferências de qualquer usuário
-        prefsDebug = SUPABASE_SERVICE_KEY !== SUPABASE_KEY ? 'service_key' : 'anon_key_fallback';
+    let prefsDebug = 'none';
 
-        const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?select=investment,fees&order=updated_at.desc&limit=1`, {
-            headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`
-            }
-        });
-        if (prefRes.ok) {
-            const prefs = await prefRes.json();
-            prefsDebug += `|rows:${prefs.length}`;
-            if (prefs && prefs.length > 0) {
-                const p = prefs[0];
-                if (p.investment != null) {
-                    INVESTMENT = parseFloat(p.investment);
-                    prefsLoaded = true;
+    // 1) Se o frontend enviou via POST body (mais confiável, bypassa RLS)
+    if (req.method === 'POST' && req.body) {
+        const body = req.body;
+        if (body.investment != null) {
+            INVESTMENT = parseFloat(body.investment);
+            prefsLoaded = true;
+            prefsDebug = 'post_body';
+        }
+        if (body.fees) {
+            for (const [id, f] of Object.entries(body.fees)) {
+                if (EXCHANGES[id]) {
+                    EXCHANGES[id].fees = {
+                        trading: parseFloat(f.trading ?? EXCHANGES[id].fees.trading),
+                        withdrawal: parseFloat(f.withdrawal ?? EXCHANGES[id].fees.withdrawal),
+                        withdrawalBrl: parseFloat(f.withdrawalBrl ?? EXCHANGES[id].fees.withdrawalBrl)
+                    };
                 }
-                if (p.fees) {
-                    for (const [id, f] of Object.entries(p.fees)) {
-                        if (EXCHANGES[id]) {
-                            EXCHANGES[id].fees = {
-                                trading: parseFloat(f.trading ?? EXCHANGES[id].fees.trading),
-                                withdrawal: parseFloat(f.withdrawal ?? EXCHANGES[id].fees.withdrawal),
-                                withdrawalBrl: parseFloat(f.withdrawalBrl ?? EXCHANGES[id].fees.withdrawalBrl)
-                            };
+            }
+        }
+    }
+
+    // 2) Se não veio do POST, tenta ler do Supabase (cron job)
+    if (!prefsLoaded) {
+        try {
+            const svcKey = SUPABASE_SERVICE_KEY;
+            prefsDebug = svcKey !== SUPABASE_KEY ? 'service_key' : 'anon_key';
+
+            const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?select=investment,fees&order=updated_at.desc&limit=1`, {
+                headers: {
+                    'apikey': SUPABASE_KEY,
+                    'Authorization': `Bearer ${svcKey}`
+                }
+            });
+            if (prefRes.ok) {
+                const prefs = await prefRes.json();
+                prefsDebug += `|rows:${prefs.length}`;
+                if (prefs && prefs.length > 0) {
+                    const p = prefs[0];
+                    if (p.investment != null) {
+                        INVESTMENT = parseFloat(p.investment);
+                        prefsLoaded = true;
+                    }
+                    if (p.fees) {
+                        for (const [id, f] of Object.entries(p.fees)) {
+                            if (EXCHANGES[id]) {
+                                EXCHANGES[id].fees = {
+                                    trading: parseFloat(f.trading ?? EXCHANGES[id].fees.trading),
+                                    withdrawal: parseFloat(f.withdrawal ?? EXCHANGES[id].fees.withdrawal),
+                                    withdrawalBrl: parseFloat(f.withdrawalBrl ?? EXCHANGES[id].fees.withdrawalBrl)
+                                };
+                            }
                         }
                     }
                 }
+            } else {
+                prefsDebug += `|http:${prefRes.status}`;
             }
-        } else {
-            prefsDebug += `|http:${prefRes.status}`;
+        } catch (err) {
+            prefsDebug += `|err:${err.message}`;
+            console.error('Failed to load user preferences from Supabase:', err.message);
         }
-    } catch (err) {
-        prefsDebug += `|err:${err.message}`;
-        console.error('Failed to load user preferences from Supabase:', err.message);
     }
 
     try {

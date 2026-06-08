@@ -328,14 +328,17 @@ async function savePreferences() {
             console.error("Erro ao salvar preferências:", error);
         } else {
             // Se salvou com sucesso, dispara o cálculo imediato e força o alerta no telegram
+            // Envia os valores atualizados diretamente no body para evitar dependência de RLS
             const { data: { session } } = await supabaseClient.auth.getSession();
             const token = session?.access_token;
             if (token) {
                 fetch('/api/arb-alert?force=true', {
-                    method: 'GET',
+                    method: 'POST',
                     headers: {
+                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
-                    }
+                    },
+                    body: JSON.stringify({ investment, fees })
                 }).catch(err => console.error("Erro ao disparar alerta no telegram:", err));
             }
         }
