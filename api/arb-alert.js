@@ -290,6 +290,10 @@ const sendTelegramMessage = async (opps) => {
     msg += `\n🕐 ${nowBRT()}`;
     msg += `\n\n_ArbDash Monitor 24/7_`;
 
+    if (!TG_TOKEN || !TG_CHAT_ID) {
+        throw new Error('Telegram configuration missing (TG_TOKEN or TG_CHAT_ID not set in env)');
+    }
+
     try {
         const response = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
             method: 'POST',
@@ -302,12 +306,12 @@ const sendTelegramMessage = async (opps) => {
         });
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
-            console.error('Erro na API do Telegram:', JSON.stringify(errData));
-        } else {
-            console.log('Mensagem de alerta enviada com sucesso para o Telegram.');
+            throw new Error(`Telegram API Error: ${response.status} - ${JSON.stringify(errData)}`);
         }
+        console.log('Mensagem de alerta enviada com sucesso para o Telegram.');
     } catch (e) {
         console.error('Telegram send failed:', e.message);
+        throw e;
     }
 };
 
