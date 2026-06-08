@@ -6,5 +6,11 @@
     { "source": "/login", "destination": "/login.html" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/admin-login", "destination": "/admin-login.html" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/arb-alert",
+      "schedule": "* * * * *"
+    }
   ]
 }
