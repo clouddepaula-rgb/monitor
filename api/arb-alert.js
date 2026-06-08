@@ -349,10 +349,16 @@ module.exports = async (req, res) => {
 
     // Carrega preferências atualizadas do usuário no Supabase
     try {
+        // Se a requisição veio do frontend com um token de usuário, encaminha esse token para o Supabase
+        const authHeader = req.headers['authorization'];
+        const userToken = (authHeader && authHeader.startsWith('Bearer ') && authHeader.substring(7) !== cronSecret) 
+            ? authHeader 
+            : `Bearer ${SUPABASE_KEY}`;
+
         const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?order=updated_at.desc&limit=1`, {
             headers: {
                 'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`
+                'Authorization': userToken
             }
         });
         if (prefRes.ok) {
