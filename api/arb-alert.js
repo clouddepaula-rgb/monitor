@@ -12,7 +12,7 @@ const SUPABASE_KEY  = 'sb_publishable_5NbtFzk47B5qmGqNJbIL5A_PlTmSwjC';
 
 const THRESHOLD_PCT = 0.22;       // Lucro mínimo para alertar
 const COOLDOWN_MS   = 3 * 60 * 1000; // 3 minutos entre alertas da mesma rota
-const INVESTMENT    = 10000;      // BRL base para cálculo
+let INVESTMENT      = 10000;      // BRL base para cálculo
 
 const CONTRACTS = {
     usdt: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
@@ -319,16 +319,64 @@ const sendTelegramMessage = async (opps) => {
 // MAIN HANDLER
 // ============================================
 module.exports = async (req, res) => {
-    // Segurança: aceita Vercel CRON_SECRET ou query param ?secret=
+    // Segurança: aceita Vercel CRON_SECRET, query param ?secret= ou JWT Token do usuário logado
     const cronSecret = process.env.CRON_SECRET;
+    let isAuthorized = false;
+
     if (cronSecret) {
         const authHeader = req.headers['authorization'];
         const querySecret = req.query?.secret;
         const isVercelCron = authHeader === `Bearer ${cronSecret}`;
         const isQueryAuth  = querySecret === cronSecret;
-        if (!isVercelCron && !isQueryAuth) {
-            return res.status(401).json({ error: 'Unauthorized' });
+        if (isVercelCron || isQueryAuth) {
+            isAuthorized = true;
         }
+    } else {
+        isAuthorized = true; // Se não configurado, aceita livremente (cron-job)
+    }
+
+    if (!isAuthorized) {
+        const { verifyAuth } = require('./util.js');
+        const user = await verifyAuth(req);
+        if (user) {
+            isAuthorized = true;
+        }
+    }
+
+    if (!isAuthorized) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Carrega preferências atualizadas do usuário no Supabase
+    try {
+        const prefRes = await fetch(`${SUPABASE_URL}/rest/v1/user_preferences?order=updated_at.desc&limit=1`, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+        });
+        if (prefRes.ok) {
+            const prefs = await prefRes.json();
+            if (prefs && prefs.length > 0) {
+                const p = prefs[0];
+                if (p.investment) {
+                    INVESTMENT = parseFloat(p.investment);
+                }
+                if (p.fees) {
+                    for (const [id, f] of Object.entries(p.fees)) {
+                        if (EXCHANGES[id]) {
+                            EXCHANGES[id].fees = {
+                                trading: parseFloat(f.trading ?? EXCHANGES[id].fees.trading),
+                                withdrawal: parseFloat(f.withdrawal ?? EXCHANGES[id].fees.withdrawal),
+                                withdrawalBrl: parseFloat(f.withdrawalBrl ?? EXCHANGES[id].fees.withdrawalBrl)
+                            };
+                        }
+                    }
+                }
+            }
+        }
+    } catch (err) {
+        console.error('Failed to load user preferences from Supabase:', err.message);
     }
 
     try {
@@ -351,10 +399,11 @@ module.exports = async (req, res) => {
             return res.status(200).json({ status: 'ok', opportunities: 0 });
         }
 
-        // 3. Verifica cooldowns
+        // 3. Verifica cooldowns (ignora se forçado pelo painel)
+        const isForce = req.query?.force === 'true';
         const cooldowns = await getCooldowns();
         const now = Date.now();
-        const newOpps = allOpps.filter(opp => {
+        const newOpps = isForce ? allOpps : allOpps.filter(opp => {
             const lastAlert = cooldowns[opp.routeKey] || 0;
             return (now - lastAlert) >= COOLDOWN_MS;
         });

@@ -324,7 +324,21 @@ async function savePreferences() {
                 updated_at: new Date().toISOString()
             }, { onConflict: 'user_id' });
             
-        if (error) console.error("Erro ao salvar preferências:", error);
+        if (error) {
+            console.error("Erro ao salvar preferências:", error);
+        } else {
+            // Se salvou com sucesso, dispara o cálculo imediato e força o alerta no telegram
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const token = session?.access_token;
+            if (token) {
+                fetch('/api/arb-alert?force=true', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }).catch(err => console.error("Erro ao disparar alerta no telegram:", err));
+            }
+        }
     } catch (e) {
         console.error("Exceção ao salvar:", e);
     }
