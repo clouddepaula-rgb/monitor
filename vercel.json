@@ -3,9 +3,6 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "regions": ["gru1"],
-  "crons": [
-    { "path": "/api/arb-alert", "schedule": "*/5 * * * *" }
-  ],
   "rewrites": [
     { "source": "/login", "destination": "/login.html" },
     { "source": "/admin", "destination": "/admin.html" },
