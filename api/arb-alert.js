@@ -316,6 +316,41 @@ const sendTelegramMessage = async (opps) => {
     }
 };
 
+const sanitizeMonitorOpportunities = (items) => {
+    if (!Array.isArray(items)) return [];
+
+    return items.slice(0, 8).map((item) => {
+        const lucroPct = Number(item.lucroPct);
+        const lucro = Number(item.lucro);
+        const buyPrice = Number(item.buyPrice);
+        const sellPrice = item.sellPrice == null ? undefined : Number(item.sellPrice);
+        const type = item.type === 'CEX/CEX' ? 'CEX/CEX' : 'CEX/DEX';
+        const buyName = String(item.buyName || '').slice(0, 40);
+        const sellName = String(item.sellName || '').slice(0, 60);
+        const routeKey = String(item.routeKey || `${type}_${buyName}_${sellName}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9_]+/g, '_')
+            .slice(0, 120);
+
+        return {
+            type,
+            routeKey,
+            buyName,
+            sellName,
+            buyPrice,
+            sellPrice,
+            lucro,
+            lucroPct
+        };
+    }).filter((opp) => {
+        if (!opp.buyName || !opp.sellName || !opp.routeKey) return false;
+        if (!Number.isFinite(opp.buyPrice) || !Number.isFinite(opp.lucro) || !Number.isFinite(opp.lucroPct)) return false;
+        if (opp.lucroPct < THRESHOLD_PCT) return false;
+        if (opp.type === 'CEX/CEX' && !Number.isFinite(opp.sellPrice)) return false;
+        return true;
+    });
+};
+
 // ============================================
 // MAIN HANDLER
 // ============================================
@@ -374,6 +409,42 @@ module.exports = async (req, res) => {
     }
 
     // 2) Se não veio do POST, tenta ler do Supabase (cron job)
+    const monitorOpps = sanitizeMonitorOpportunities(req.body?.opportunities);
+    if (monitorOpps.length > 0) {
+        try {
+            const isForce = req.query?.force === 'true';
+            const cooldowns = await getCooldowns();
+            const now = Date.now();
+            const newOpps = isForce ? monitorOpps : monitorOpps.filter(opp => {
+                const lastAlert = cooldowns[opp.routeKey] || 0;
+                return (now - lastAlert) >= COOLDOWN_MS;
+            });
+
+            if (newOpps.length === 0) {
+                return res.status(200).json({
+                    status: 'ok',
+                    source: 'monitor',
+                    opportunities: monitorOpps.length,
+                    cooledDown: true
+                });
+            }
+
+            await sendTelegramMessage(newOpps);
+            await updateCooldowns(newOpps.map(o => o.routeKey));
+
+            return res.status(200).json({
+                status: 'alerted',
+                source: 'monitor',
+                opportunities: newOpps.length,
+                investment: INVESTMENT,
+                routes: newOpps.map(o => `${o.type}: ${o.buyName}->${o.sellName} (${o.lucroPct.toFixed(2)}%)`)
+            });
+        } catch (err) {
+            console.error('Monitor alert error:', err);
+            return res.status(500).json({ error: err.message });
+        }
+    }
+
     if (!prefsLoaded) {
         try {
             const svcKey = SUPABASE_SERVICE_KEY;

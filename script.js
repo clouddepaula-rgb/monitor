@@ -417,6 +417,49 @@ let selectedBuyEx = "binance";
 let selectedSellEx = "kucoin";
 let latestCexPrices = {};
 let opportunityHistory = [];
+const TELEGRAM_ALERT_THRESHOLD = 0.22;
+const TELEGRAM_ALERT_COOLDOWN_MS = 3 * 60 * 1000;
+const telegramAlertCooldowns = {};
+
+const normalizeRoutePart = (value) =>
+    value.toString().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+
+const triggerTelegramAlert = async (opportunity) => {
+    if (!currentUser || !opportunity || opportunity.lucroPct < TELEGRAM_ALERT_THRESHOLD) return;
+
+    const routeKey = opportunity.routeKey;
+    const now = Date.now();
+    if (routeKey && telegramAlertCooldowns[routeKey] && now - telegramAlertCooldowns[routeKey] < TELEGRAM_ALERT_COOLDOWN_MS) {
+        return;
+    }
+    if (routeKey) telegramAlertCooldowns[routeKey] = now;
+
+    try {
+        const { investment, fees } = getInputs();
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const response = await fetch('/api/arb-alert?source=monitor', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                investment,
+                fees,
+                opportunities: [opportunity]
+            })
+        });
+
+        if (!response.ok) {
+            console.error('Erro ao enviar alerta para Telegram:', await response.text());
+        }
+    } catch (err) {
+        console.error('Erro ao acionar alerta Telegram:', err);
+    }
+};
 
 const updateExButtons = () => {
     document.querySelectorAll('#buy-buttons .ex-btn').forEach(btn => {
@@ -550,7 +593,22 @@ const calculateCexCex = () => {
     if (lucro > 0) {
         profitBox.classList.remove('loss');
 
-        if (lucroPct >= 0.22 && soundEnabled && !window.playedSoundThisCycleCex) {
+        if (lucroPct >= TELEGRAM_ALERT_THRESHOLD) {
+            const buyName = EXCHANGES.find(e=>e.id===selectedBuyEx).name;
+            const sellName = EXCHANGES.find(e=>e.id===selectedSellEx).name;
+            triggerTelegramAlert({
+                type: 'CEX/CEX',
+                routeKey: `cex_${selectedBuyEx}_${selectedSellEx}`,
+                buyName,
+                sellName,
+                buyPrice,
+                sellPrice,
+                lucro,
+                lucroPct
+            });
+        }
+
+        if (lucroPct >= TELEGRAM_ALERT_THRESHOLD && soundEnabled && !window.playedSoundThisCycleCex) {
             playBeep();
             showToast('Arbitragem CEX/CEX', `Lucro de ${lucroPct.toFixed(2)}% (${formatBRL(lucro)}) via ${EXCHANGES.find(e=>e.id===selectedBuyEx).name} → ${EXCHANGES.find(e=>e.id===selectedSellEx).name}`);
             window.playedSoundThisCycleCex = true;
@@ -935,7 +993,7 @@ const fetchArbitrageData = async () => {
                 }
 
                 // Double Alert (Pulse + Toast) if >= 0.22%
-                if (bestProfitObj.pct >= 0.22) {
+                if (bestProfitObj.pct >= TELEGRAM_ALERT_THRESHOLD) {
                     if (soundEnabled && !playedSoundThisCycle) {
                         playBeep();
                         playedSoundThisCycle = true;
@@ -943,6 +1001,16 @@ const fetchArbitrageData = async () => {
                     showToast('Oportunidade DEX!', `Lucro de ${bestProfitObj.pct.toFixed(2)}% (${formatBRL(bestProfitObj.val)}) via ${ex.name} ➔ ${bestProfitObj.name}`);
                     cardEl.classList.add('pulse-badge');
                     setTimeout(() => cardEl.classList.remove('pulse-badge'), 3000);
+
+                    triggerTelegramAlert({
+                        type: 'CEX/DEX',
+                        routeKey: `dex_${ex.id}_${normalizeRoutePart(bestProfitObj.name)}`,
+                        buyName: ex.name,
+                        sellName: bestProfitObj.name,
+                        buyPrice: price,
+                        lucro: bestProfitObj.val,
+                        lucroPct: bestProfitObj.pct
+                    });
                 }
 
                 // History Throttle for DEX
